@@ -4,7 +4,6 @@ import RedisHandler from "./redis"
 import { snakeCase } from 'change-case'
 import { RedisOptions } from "ioredis"
 import { PoolConfig, QueryResultRow } from "pg"
-import Logger from "./logger"
 import { CountGuildInvites, GuildPlugin, GuildRank, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry, GuildMember, GuildMemberEvent, TransactionData, NewlyCancelledPayment } from "./results"
 
 const formatPayment = (paymentRow: QueryResultRow): SubscriptionPayment => ({
@@ -28,10 +27,10 @@ export = class DatabaseHandler {
     public redis: RedisHandler
     public postgres: PostgresHandler
 
-    constructor (redisConfig: RedisOptions, postgresConfig: PoolConfig, logger?: Logger) {
+    constructor (redisConfig: RedisOptions, postgresConfig: PoolConfig, log?: LogFunction) {
 
-        this.redis = new RedisHandler(redisConfig, logger)
-        this.postgres = new PostgresHandler(postgresConfig, logger)
+        this.redis = new RedisHandler(redisConfig, log)
+        this.postgres = new PostgresHandler(postgresConfig, log)
 
     }
 

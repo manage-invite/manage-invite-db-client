@@ -1,5 +1,5 @@
 import Redis, { RedisOptions, ValueType } from 'ioredis'
-import Logger from './logger'
+type LogFunction = (message: string, type: string) => void
 
 export default class RedisHandler {
 
@@ -9,10 +9,12 @@ export default class RedisHandler {
     public log: (message: string) => void
     public client: Redis.Redis
 
-    constructor (redisConfig: RedisOptions, logger?: Logger) {
+    constructor (redisConfig: RedisOptions, log?: LogFunction) {
 
         this.connect = new Promise((resolve) => this.connectResolve = resolve)
-        this.log = (content) => logger?.log(content, "redis")
+        this.log = (content) => {
+            if (log) log(content, 'redis')
+        }
 
         this.client = new Redis(redisConfig)
         this.client.connect().then(() => {

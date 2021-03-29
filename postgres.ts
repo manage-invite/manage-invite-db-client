@@ -1,5 +1,5 @@
 import { Pool, PoolConfig, QueryResult } from 'pg'
-import Logger from './logger'
+type LogFunction = (message: string, type: string) => void
 
 export default class PostgresHandler {
 
@@ -10,11 +10,13 @@ export default class PostgresHandler {
     public connected: boolean
     public log: (message: string) => void
 
-    constructor (postgresConfig: PoolConfig, logger?: Logger) {
+    constructor (postgresConfig: PoolConfig, log?: LogFunction) {
 
         this.connect = new Promise((resolve) => this.connectResolve = resolve)
         this.connected = false
-        this.log = (content) => logger?.log(content, "postgres")
+        this.log = (content) => {
+            if (log) log(content, 'postgres')
+        }
 
         this.client = new Pool(postgresConfig)
         this.client.on("connect", () => {
