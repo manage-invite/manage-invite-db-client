@@ -1,7 +1,7 @@
-import { Pool, PoolConfig } from 'pg';
+import { Pool, PoolConfig, QueryResult } from 'pg';
 import Logger from './logger';
 
-export class PostgresHandler {
+export default class PostgresHandler {
 
     public connect: Promise<void>;
     public connectResolve?: Function;
@@ -31,7 +31,7 @@ export class PostgresHandler {
     /**
      * Query the POSTGRES database
      */
-    query (query: string, ...args: any[]) {
+    query (query: string, ...args: any[]): Promise<QueryResult<any>> {
         return new Promise((resolve, reject) => {
             // const startAt = Date.now();
             this.client.query(query, args, (error, results) => {

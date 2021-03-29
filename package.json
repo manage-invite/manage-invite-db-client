@@ -5,6 +5,7 @@
   "author": "Androz2091 <androz2091@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "change-case": "^4.1.2",
     "ioredis": "^4.24.5",
     "pg": "^8.5.1"
   },
