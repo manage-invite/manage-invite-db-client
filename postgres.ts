@@ -1,5 +1,5 @@
 import { Pool, PoolConfig, QueryResult } from 'pg'
-type LogFunction = (message: string, type: string) => void
+import { LogFunction } from './log'
 
 export default class PostgresHandler {
 

@@ -1,5 +1,5 @@
 import Redis, { RedisOptions, ValueType } from 'ioredis'
-type LogFunction = (message: string, type: string) => void
+import { LogFunction } from './log'
 
 export default class RedisHandler {
 
