@@ -2,7 +2,6 @@
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
-Object.defineProperty(exports, "__esModule", { value: true });
 const postgres_1 = __importDefault(require("./postgres"));
 const redis_1 = __importDefault(require("./redis"));
 const change_case_1 = require("change-case");
@@ -20,10 +19,10 @@ const formatPayment = (paymentRow) => ({
     payerDiscordUsername: paymentRow.payer_discord_username
 });
 const generateStorageID = () => [...Array(12)].map(() => (~~(Math.random() * 36)).toString(36)).join("");
-class DatabaseHandler {
-    constructor(redisConfig, postgresConfig, logger) {
-        this.redis = new redis_1.default(redisConfig, logger);
-        this.postgres = new postgres_1.default(postgresConfig, logger);
+module.exports = class DatabaseHandler {
+    constructor(redisConfig, postgresConfig, log) {
+        this.redis = new redis_1.default(redisConfig, log);
+        this.postgres = new postgres_1.default(postgresConfig, log);
     }
     async connect() {
         await Promise.all([
@@ -757,5 +756,4 @@ class DatabaseHandler {
             subLabel: row.sub_label
         }));
     }
-}
-exports.default = DatabaseHandler;
+};

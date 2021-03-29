@@ -5,9 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const ioredis_1 = __importDefault(require("ioredis"));
 class RedisHandler {
-    constructor(redisConfig, logger) {
+    constructor(redisConfig, log) {
         this.connect = new Promise((resolve) => this.connectResolve = resolve);
-        this.log = (content) => logger?.log(content, "redis");
+        this.log = (content) => {
+            if (log)
+                log(content, 'redis');
+        };
         this.client = new ioredis_1.default(redisConfig);
         this.client.connect().then(() => {
             this.log("Connected.");

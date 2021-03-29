@@ -2,10 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const pg_1 = require("pg");
 class PostgresHandler {
-    constructor(postgresConfig, logger) {
+    constructor(postgresConfig, log) {
         this.connect = new Promise((resolve) => this.connectResolve = resolve);
         this.connected = false;
-        this.log = (content) => logger?.log(content, "postgres");
+        this.log = (content) => {
+            if (log)
+                log(content, 'postgres');
+        };
         this.client = new pg_1.Pool(postgresConfig);
         this.client.on("connect", () => {
             if (!this.connected) {
