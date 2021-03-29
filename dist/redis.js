@@ -12,7 +12,7 @@ class RedisHandler {
                 log(content, 'redis');
         };
         this.client = new ioredis_1.default(redisConfig);
-        this.client.connect().then(() => {
+        this.client.on('connect', () => {
             this.log("Connected.");
             if (this.connectResolve)
                 this.connectResolve();

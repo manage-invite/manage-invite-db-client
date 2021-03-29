@@ -17,7 +17,7 @@ export default class RedisHandler {
         }
 
         this.client = new Redis(redisConfig)
-        this.client.connect().then(() => {
+        this.client.on('connect', () => {
             this.log("Connected.")
             if (this.connectResolve) this.connectResolve()
         })
