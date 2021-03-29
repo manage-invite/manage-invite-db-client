@@ -1,17 +1,17 @@
-export type InviteType = 'leaves' | 'regular' | 'fake' | 'bonus';
+export type InviteType = 'leaves' | 'regular' | 'fake' | 'bonus'
 
 export interface CountGuildInvites {
     leaves: number;
     regular: number;
     fake: number;
     bonus: number;
-};
+}
 
 export interface GuildStorage {
     guildID: string;
     storageID: string;
     createdAt: number;
-};
+}
 
 export interface GuildSubscription {
     id: string;
@@ -31,12 +31,12 @@ export interface SubscriptionPayment {
     createdAt: Date;
     type: string;
     transactionID: string;
-    details: any;
+    details: unknown;
     modDiscordID: string;
     signupID: string;
     payerEmail: string;
     payerDiscordUsername: string;
-};
+}
 
 export interface GuildSettings {
     guildID: string;
@@ -47,30 +47,30 @@ export interface GuildSettings {
     stackedRanks: boolean;
     cmdChannel: string;
     fakeThreshold: number;
-};
+}
 
 export interface PremiumStatus {
     guildID: string;
     isPremium: boolean;
     isTrial: boolean;
-};
+}
 
 export interface GuildSubscriptionStatus {
     isPayPal: boolean;
     isCancelled: boolean;
-};
+}
 
 export interface GuildRank {
     guildID: string;
     roleID: string;
     inviteCount: number;
-};
+}
 
 export interface GuildPlugin {
     guildID: string;
     pluginName: string;
-    pluginData: any;
-};
+    pluginData: Record<string, unknown>;
+}
 
 export interface UserLeaderboardEntry {
     userID: string;
@@ -79,7 +79,7 @@ export interface UserLeaderboardEntry {
     leaves: number;
     bonus: number;
     fake: number;
-};
+}
 
 export interface GuildMember {
     userID: string;
@@ -92,10 +92,10 @@ export interface GuildMember {
     
     notCreated: boolean;
     invites: number;
-};
+}
 
-type GuildMemberEventType = 'join' | 'leave';
-type GuildMemberEventJoinType = 'normal' | 'oauth' | 'vanity' | 'perm' | 'unknown';
+type GuildMemberEventType = 'join' | 'leave'
+type GuildMemberEventJoinType = 'normal' | 'oauth' | 'vanity' | 'perm' | 'unknown'
 
 export interface GuildMemberEvent {
     userID: string;
@@ -104,15 +104,15 @@ export interface GuildMemberEvent {
     eventDate: number | Date;
     joinType: GuildMemberEventJoinType;
     inviterID: string;
-    inviteData: any;
+    inviteData: unknown;
     storageID: string;
     joinFake: boolean;
-};
+}
 
 export interface TransactionData {
     subID: string;
     guildID: string;
-};
+}
 
 export interface NewlyCancelledPayment {
     payerDiscordID: string;

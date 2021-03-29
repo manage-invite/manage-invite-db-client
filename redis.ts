@@ -1,90 +1,86 @@
-import Redis, { RedisOptions } from 'ioredis';
-import Logger from './logger';
-
-interface UnknownData {
-    [key: string]: any;
-};
+import Redis, { RedisOptions, ValueType } from 'ioredis'
+import Logger from './logger'
 
 export default class RedisHandler {
 
-    public connect: Promise<void>;
-    public connectResolve?: Function;
+    public connect: Promise<void>
+    public connectResolve?: () => void
 
-    public log: (message: string) => void;
-    public client: Redis.Redis;
+    public log: (message: string) => void
+    public client: Redis.Redis
 
     constructor (redisConfig: RedisOptions, logger?: Logger) {
 
-        this.connect = new Promise((resolve) => this.connectResolve = resolve);
-        this.log = (content) => logger?.log(content, "redis");
+        this.connect = new Promise((resolve) => this.connectResolve = resolve)
+        this.log = (content) => logger?.log(content, "redis")
 
-        this.client = new Redis(redisConfig);
+        this.client = new Redis(redisConfig)
         this.client.connect().then(() => {
-            this.log("Connected.");
-            if (this.connectResolve) this.connectResolve();
-        });
+            this.log("Connected.")
+            if (this.connectResolve) this.connectResolve()
+        })
 
     }
 
     /**
      * Get a REDIS hash field
      */
-    getHashField (key: string, field: string) {
+    getHashField (key: string, field: string): Promise<string|null> {
         // const startAt = Date.now();
         return this.client.hget(key, field).then((data) => {
             // this.log(`Hash field ${key} retrieved in ${parseInt(Date.now() - startAt)}ms`);
-            return data;
-        });
+            return data
+        })
     }
 
     /**
      * Get REDIS hash fields
      */
-    getHashFields (key: string) {
+    getHashFields (key: string): Promise<Record<string, string>|null> {
         // const startAt = Date.now();
         return this.client.hgetall(key).then((data) => {
             // this.log(`Hash fields ${key} retrieved in ${parseInt(Date.now() - startAt)}ms`);
-            return data;
-        });
+            return data
+        })
     }
 
     /**
      * Set REDIS hash key(s)
      */
-    setHash (key: string, data: UnknownData) {
+    async setHash (key: string, data: Record<string, unknown>): Promise<void> {
         // this.log(`Caching hash ${key}`);
-        const fields = Object.keys(data);
-        if (fields.length > 1) return this.client.hmset(key, ...fields.map((field) => [ field, data[field] ]).flat());
-        else return this.client.hset(key, fields[0], data[fields[0]]);
+        const fields = Object.keys(data)
+        if (fields.length > 1) await this.client.hmset(key, ...fields.map((field) => [ field, data[field] as ValueType ]).flat())
+        else await this.client.hset(key, fields[0], data[fields[0]] as ValueType)
     }
 
     /**
      * Increment a REDIS hash
      */
-    incrHashBy (key: string, field: string, num: number) {
+    async incrHashBy (key: string, field: string, num: number): Promise<void> {
         // this.log(`Incr ${key}#${field} by ${num}`);
-        return this.client.hincrby(key, field, num);
+        await this.client.hincrby(key, field, num)
     }
 
     /**
      * Get a REDIS string key
      */
     getString (key: string, json?: false): Promise<string>
-    getString (key: string, json?: true): Promise<Object>
+    getString (key: string, json?: true): Promise<unknown>
     getString (key: string, json?: boolean): Promise<string> {
         // const startAt = Date.now();
         return this.client.get(key).then((data) => {
             // this.log(`String ${key} retrieved in ${parseInt(Date.now() - startAt)}ms`);
-            return json && data ? JSON.parse(data) : data;
-        });
+            return json && data ? JSON.parse(data) : data
+        })
     }
 
     /**
      * Set a REDIS string key
      */
-    setString (key: string, data: string) {
+    async setString (key: string, data: string): Promise<void> {
         // this.log(`Caching string ${key}`);
-        return this.client.set(key, data);
+        await this.client.set(key, data)
     }
 
     /**
@@ -93,10 +89,10 @@ export default class RedisHandler {
     getStats (): Promise<string> {
         return new Promise((resolve) => {
             this.client.info("keyspace").then((data) => {
-                const [,keys] = data.match(/db0:keys=([0-9]+)/) ?? [, '0'];
-                resolve(keys!);
-            });
-        });
+                const [,keys] = data.match(/db0:keys=([0-9]+)/) ?? [null, '0']
+                resolve(keys as string)
+            })
+        })
     }
 
 }
