@@ -1,0 +1,14 @@
+{
+  "name": "manage-invite-db-client",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Androz2091 <androz2091@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "ioredis": "^4.24.5",
+    "pg": "^8.5.1"
+  },
+  "devDependencies": {
+    "@types/ioredis": "^4.22.1"
+  }
+}
