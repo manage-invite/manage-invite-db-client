@@ -25,8 +25,8 @@ class DatabaseHandler {
         this.redis = new redis_1.default(redisConfig, logger);
         this.postgres = new postgres_1.default(postgresConfig, logger);
     }
-    connect() {
-        return Promise.all([
+    async connect() {
+        await Promise.all([
             this.redis.connect,
             this.postgres.connect
         ]);
@@ -110,7 +110,7 @@ class DatabaseHandler {
             WHERE guild_id = $2
             RETURNING guild_storage_id;
         `, storageID, guildID);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Restore the guild invites by changing back the storage id
@@ -204,7 +204,7 @@ class DatabaseHandler {
     /**
      * Update a property of the guild subscription
      */
-    updateGuildSubscription(subID, guildID, settingName, newSettingValue) {
+    async updateGuildSubscription(subID, guildID, settingName, newSettingValue) {
         if (!["expires_at", "created_at", "sub_label", "guilds_count", "patreon_user_id", "cancelled", "sub_invalidated"].includes(change_case_1.snakeCase(settingName)))
             throw new Error("unknown_guild_setting");
         const redisUpdatePromise = this.redis.getString(`guild_subscriptions_${guildID}`, true).then((guildSubscriptions) => {
@@ -223,7 +223,7 @@ class DatabaseHandler {
             SET ${change_case_1.snakeCase(settingName)} = $1
             WHERE id = $2;
         `, newSettingValue, subID);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Get the subscription status of a guild (to check whether it's maintained by PayPal and cancelled)
@@ -299,7 +299,7 @@ class DatabaseHandler {
     /**
      * Update a property of a guild settings
      */
-    updateGuildSetting(guildID, settingName, newSettingValue) {
+    async updateGuildSetting(guildID, settingName, newSettingValue) {
         if (!["language", "prefix", "cmd_channel", "fake_treshold", "keep_ranks", "stacked_ranks", "storage_id"].includes(change_case_1.snakeCase(settingName)))
             throw new Error("unknown_guild_setting");
         const redisUpdatePromise = this.redis.setHash(`guild_${guildID}`, {
@@ -310,12 +310,12 @@ class DatabaseHandler {
             SET guild_${change_case_1.snakeCase(settingName)} = $1
             WHERE guild_id = $2;
         `, newSettingValue, guildID);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Add a new guild rank
      */
-    addGuildRank(guildID, roleID, inviteCount) {
+    async addGuildRank(guildID, roleID, inviteCount) {
         const redisUpdatePromise = this.redis.getString(`guild_ranks_${guildID}`, true).then((ranks) => {
             if (!ranks)
                 return;
@@ -334,7 +334,7 @@ class DatabaseHandler {
             (guild_id, role_id, invite_count) VALUES
             ($1, $2, $3)
         `, guildID, roleID, inviteCount);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Remove an existing guild rank
@@ -351,7 +351,7 @@ class DatabaseHandler {
             WHERE role_id = $1
             AND guild_id = $2;
         `, roleID, guildID);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Get the ranks of a guild
@@ -396,7 +396,7 @@ class DatabaseHandler {
     /**
      * Update a guild plugin
      */
-    updateGuildPlugin(guildID, pluginName, newPluginData) {
+    async updateGuildPlugin(guildID, pluginName, newPluginData) {
         const redisUpdatePromise = this.redis.getString(`guild_plugins_${guildID}`, true).then((data) => {
             let newFormattedPlugins = [...data];
             newFormattedPlugins = newFormattedPlugins.filter((p) => p.pluginName !== pluginName);
@@ -430,12 +430,12 @@ class DatabaseHandler {
                 `, JSON.stringify(newPluginData), pluginName, guildID);
             }
         });
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Add X invites to a member / the server
      */
-    addInvites({ userID, guildID, storageID, number, type }) {
+    async addInvites({ userID, guildID, storageID, number, type }) {
         const redisUpdatePromise = this.redis.incrHashBy(`member_${userID}_${guildID}_${storageID}`, type, number);
         const postgresUpdatePromise = this.postgres.query(`
             UPDATE members
@@ -444,12 +444,12 @@ class DatabaseHandler {
             AND guild_id = $3
             AND storage_id = $4;
         `, number, userID, guildID, storageID);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Add invites to a server
      */
-    addGuildInvites({ usersID, guildID, storageID, number, type }) {
+    async addGuildInvites({ usersID, guildID, storageID, number, type }) {
         const redisUpdates = usersID.map((userID) => this.redis.incrHashBy(`member_${userID}_${guildID}_${storageID}`, type, number));
         const postgresUpdate = this.postgres.query(`
             UPDATE members
@@ -457,7 +457,7 @@ class DatabaseHandler {
             WHERE guild_id = $2
             AND storage_id = $3;
         `, number, guildID, storageID);
-        return Promise.all([Promise.all(redisUpdates), postgresUpdate]).then(() => { });
+        await Promise.all([Promise.all(redisUpdates), postgresUpdate]);
     }
     /**
      * Get the guild blacklisted users
@@ -478,7 +478,7 @@ class DatabaseHandler {
     /**
      * Add a user to the guild blacklist
      */
-    addGuildBlacklistedUser({ guildID, userID }) {
+    async addGuildBlacklistedUser({ guildID, userID }) {
         const redisUpdatePromise = this.redis.getString(`guild_blacklisted_${guildID}`, true).then((blacklisted) => {
             if (!blacklisted)
                 return;
@@ -490,12 +490,12 @@ class DatabaseHandler {
             (user_id, guild_id) VALUES
             ($1, $2);
         `, userID, guildID);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Remove a user from the guild blacklist
      */
-    removeGuildBlacklistedUser({ guildID, userID }) {
+    async removeGuildBlacklistedUser({ guildID, userID }) {
         const redisUpdatePromise = this.redis.getString(`guild_blacklisted_${guildID}`, true).then((blacklisted) => {
             if (!blacklisted)
                 return;
@@ -508,7 +508,7 @@ class DatabaseHandler {
             WHERE user_id = $1
             AND guild_id = $2;
         `, userID, guildID);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Get the guild leaderboard
@@ -539,7 +539,7 @@ class DatabaseHandler {
     /**
      * Create a guild member (before updating it)
      */
-    createGuildMember({ userID, guildID, storageID }) {
+    async createGuildMember({ userID, guildID, storageID }) {
         const redisUpdatePromise = this.redis.setHash(`member_${userID}_${guildID}_${storageID}`, {
             notCreated: false
         });
@@ -555,7 +555,7 @@ class DatabaseHandler {
             )
             RETURNING *;
         `, guildID, userID, storageID);
-        return Promise.all([redisUpdatePromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
      * Get a guild member
@@ -658,7 +658,7 @@ class DatabaseHandler {
             (user_id, guild_id, event_date, event_type, join_type, inviter_user_id, invite_data, join_fake, storage_id) VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, $9);
         `, userID, guildID, eventDate.toISOString(), eventType, joinType, inviterID, inviteData, joinFake, storageID);
-        return Promise.all([redisUpdateUserPromise, redisUpdateInviterPromise, postgresUpdatePromise]).then(() => { });
+        await Promise.all([redisUpdateUserPromise, redisUpdateInviterPromise, postgresUpdatePromise]);
     }
     /**
      * Fetch the premium users
@@ -718,12 +718,12 @@ class DatabaseHandler {
     /**
      * Mark a payment as already reminded
      */
-    setPaymentRemindSent({ paymentID, subID, success, kicked }) {
-        return this.postgres.query(`
+    async setPaymentRemindSent({ paymentID, subID, success, kicked }) {
+        await this.postgres.query(`
             INSERT INTO payments_reminds
             (last_payment_id, sub_id, success_sent, bot_kicked) VALUES
             ($1, $2, $3, $4);
-        `, paymentID, subID, success, kicked).then(() => { });
+        `, paymentID, subID, success, kicked);
     }
     /**
      * Fetch all the subscriptions that have not been paid (they have expired 3 days ago at least).
@@ -759,4 +759,3 @@ class DatabaseHandler {
     }
 }
 exports.default = DatabaseHandler;
-;
