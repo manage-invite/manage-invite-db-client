@@ -22,6 +22,8 @@ const formatPayment = (paymentRow: QueryResultRow): SubscriptionPayment => ({
 
 const generateStorageID = () => [...Array(12)].map(()=>(~~(Math.random()*36)).toString(36)).join("")
 
+type LogFunction = (message: string, type: string) => void
+
 export = class DatabaseHandler {
 
     public redis: RedisHandler
