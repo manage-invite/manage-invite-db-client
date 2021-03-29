@@ -23,7 +23,7 @@ const formatPayment = (paymentRow: QueryResultRow): SubscriptionPayment => ({
 
 const generateStorageID = () => [...Array(12)].map(()=>(~~(Math.random()*36)).toString(36)).join("")
 
-export default class DatabaseHandler {
+export = class DatabaseHandler {
 
     public redis: RedisHandler
     public postgres: PostgresHandler
