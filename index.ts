@@ -5,7 +5,7 @@ import { snakeCase } from 'change-case';
 import { RedisOptions } from "ioredis";
 import { PoolConfig } from "pg";
 import Logger from "./logger";
-import { CountGuildInvites, GuildPlugin, GuildRank, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry } from "./results";
+import { CountGuildInvites, GuildPlugin, GuildRank, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry, GuildMember, GuildMemberEvent, TransactionData, NewlyCancelledPayment } from "./results";
 
 const formatPayment = (paymentRow: any): SubscriptionPayment => ({
     id: paymentRow.id,
@@ -581,8 +581,11 @@ export default class DatabaseHandler {
     /**
      * Create a guild member (before updating it)
      */
-    async createGuildMember ({ userID, guildID, storageID }) {
-        await this.postgres.query(`
+    createGuildMember ({ userID, guildID, storageID }: { userID: string, guildID: string, storageID: string }): Promise<void> {
+        const redisUpdatePromise: Promise<any> = this.redis.setHash(`member_${userID}_${guildID}_${storageID}`, {
+            notCreated: false
+        });
+        const postgresUpdatePromise = this.postgres.query(`
             INSERT INTO members
             (
                 guild_id, user_id, storage_id,
@@ -594,16 +597,14 @@ export default class DatabaseHandler {
             )
             RETURNING *;
         `, guildID, userID, storageID);
-        await this.redis.setHash(`member_${userID}_${guildID}_${storageID}`, {
-            notCreated: false
-        });
+        return Promise.all([ redisUpdatePromise, postgresUpdatePromise ]).then(() => {});
     }
 
     /**
      * Get a guild member
      */
-    async fetchGuildMember ({ userID, guildID, storageID }) {
-        const redisData = await this.redis.getHash(`member_${userID}_${guildID}_${storageID}`);
+    async fetchGuildMember ({ userID, guildID, storageID }: { userID: string, guildID: string, storageID: string }): Promise<GuildMember> {
+        const redisData = await this.redis.getHashFields(`member_${userID}_${guildID}_${storageID}`);
         if (redisData?.userID) return {
             userID: redisData.userID,
             guildID: redisData.guildID,
@@ -613,7 +614,7 @@ export default class DatabaseHandler {
             bonus: parseInt(redisData.bonus),
             regular: parseInt(redisData.regular),
             
-            notCreated: redisData === "true",
+            notCreated: redisData.notCreated === "true",
             invites: parseInt(redisData.regular) + parseInt(redisData.bonus) - parseInt(redisData.leaves) - parseInt(redisData.fake)
         };
 
@@ -625,7 +626,7 @@ export default class DatabaseHandler {
             AND storage_id = $3;
         `, guildID, userID, storageID);
 
-        const formattedMember = {
+        const formattedMember= {
             userID: rows[0] ? rows[0].user_id : 0,
             guildID: rows[0] ? rows[0].guild_id : 0,
             storageID: rows[0] ? rows[0].storage_id : storageID,
@@ -640,15 +641,15 @@ export default class DatabaseHandler {
         return {
             ...formattedMember,
             invites: formattedMember.regular + formattedMember.bonus - formattedMember.leaves - formattedMember.fake
-        };
+        } as GuildMember;
     }
 
     /**
      * Get the member events (the events where they were invited and the events where they invited someone else)
      */
-    async fetchGuildMemberEvents ({ userID, guildID }) {
-        const redisData = await this.redis.getString(`member_${userID}_${guildID}_events`, { json: true });
-        if (redisData) return redisData;
+    async fetchGuildMemberEvents ({ userID, guildID }: { userID: string, guildID: string }): Promise<GuildMemberEvent[]> {
+        const redisData = await this.redis.getString(`member_${userID}_${guildID}_events`, true);
+        if (redisData) return redisData as GuildMemberEvent[];
 
         const { rows } = await this.postgres.query(`
             SELECT *
@@ -658,7 +659,7 @@ export default class DatabaseHandler {
             AND guild_id = $2;
         `, userID, guildID);
 
-        const formattedEvents = rows.map((row) => ({
+        const formattedEvents: GuildMemberEvent[] = rows.map((row) => ({
             userID: row.user_id,
             guildID: row.guild_id,
             eventType: row.event_type,
@@ -666,7 +667,8 @@ export default class DatabaseHandler {
             joinType: row.join_type,
             inviterID: row.inviter_user_id,
             inviteData: row.invite_data,
-            storageID: row.storage_id
+            storageID: row.storage_id,
+            joinFake: row.join_fake
         }));
         this.redis.setString(`member_${userID}_${guildID}_events`, JSON.stringify(formattedEvents));
 
@@ -676,7 +678,7 @@ export default class DatabaseHandler {
     /**
      * Get the payments of a subscription
      */
-    async fetchSubscriptionPayments (subID) {
+    async fetchSubscriptionPayments (subID: string): Promise<SubscriptionPayment[]> {
         const { rows } = await this.postgres.query(`
             SELECT *
             FROM payments p
@@ -684,63 +686,61 @@ export default class DatabaseHandler {
             WHERE sp.sub_id = $1;
         `, subID);
         
-        return rows.map((row) => formatPayment(row));
+        return rows.map((row) => formatPayment(row)) as SubscriptionPayment[];
     }
 
     /**
      * Insert a new event record in the database
      */
-    async createGuildMemberEvent ({ userID, guildID, eventDate = new Date(), eventType, joinType, inviterID, inviteData, joinFake, storageID }) {
-        await this.redis.getString(`member_${userID}_${guildID}_events`, { json: true }).then((data) => {
+    async createGuildMemberEvent ({ userID, guildID, eventDate = new Date(), eventType, joinType, inviterID, inviteData, joinFake, storageID }: Partial<GuildMemberEvent>): Promise<void> {
+        const redisUpdateUserPromise = this.redis.getString(`member_${userID}_${guildID}_events`, true).then((data) => {
             if (data) {
-                const newData = [...data, { userID, guildID, eventDate: eventDate.getTime(), eventType, joinType, inviterID, inviteData, joinFake, storageID }];
+                const newData = [...(data as GuildMemberEvent[]), { userID, guildID, eventDate: (eventDate as Date).getTime(), eventType, joinType, inviterID, inviteData, joinFake, storageID }];
                 return this.redis.setString(`member_${userID}_${guildID}_events`, JSON.stringify(newData));
             }
         });
-        if (inviterID) {
-            await this.redis.getString(`member_${inviterID}_${guildID}_events`, { json: true }).then((data) => {
-                if (data) {
-                    const newData = [...data, { userID, guildID, eventDate: eventDate.getTime(), eventType, joinType, inviterID, inviteData, joinFake, storageID }];
-                    return this.redis.setString(`member_${inviterID}_${guildID}_events`, JSON.stringify(newData));
-                }
-            });
-        }
-
-        await this.postgres.query(`
+        const redisUpdateInviterPromise = inviterID ? this.redis.getString(`member_${inviterID}_${guildID}_events`, true).then((data) => {
+            if (data) {
+                const newData = [...(data as GuildMemberEvent[]), { userID, guildID, eventDate: (eventDate as Date).getTime(), eventType, joinType, inviterID, inviteData, joinFake, storageID }];
+                return this.redis.setString(`member_${inviterID}_${guildID}_events`, JSON.stringify(newData));
+            }
+        }) : null;
+        const postgresUpdatePromise = this.postgres.query(`
             INSERT INTO invited_member_events
             (user_id, guild_id, event_date, event_type, join_type, inviter_user_id, invite_data, join_fake, storage_id) VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, $9);
-        `, userID, guildID, eventDate.toISOString(), eventType, joinType, inviterID, inviteData, joinFake, storageID);
+        `, userID, guildID, (eventDate as Date).toISOString(), eventType, joinType, inviterID, inviteData, joinFake, storageID);
+        return Promise.all([ redisUpdateUserPromise, redisUpdateInviterPromise, postgresUpdatePromise ]).then(() => {});
     }
 
     /**
      * Fetch the premium users
      */
-    async fetchPremiumUserIDs () {
+    async fetchPremiumUserIDs (): Promise<string[]> {
         const { rows } = await this.postgres.query(`
             SELECT payer_discord_id
             FROM payments
             WHERE type = 'paypal_dash_pmnt_month'
             OR type = 'email_address_pmnt_month';
         `);
-        return rows.map((row) => row.payer_discord_id);
+        return rows.map((row) => row.payer_discord_id) as string[];
     }
 
     /**
      * Fetch the premium guilds
      */
-    async fetchPremiumGuildIDs () {
+    async fetchPremiumGuildIDs (): Promise<string[]> {
         const { rows } = await this.postgres.query(`
             SELECT guild_id
             FROM guilds_subscriptions
         `);
-        return rows.map((row) => row.guild_id);
+        return rows.map((row) => row.guild_id) as string[];
     }
 
     /**
      * Fetch the data of a transaction
      */
-    async fetchTransactionData (transactionID) {
+    async fetchTransactionData (transactionID: string): Promise<TransactionData|null> {
         let { rows } = await this.postgres.query(`
             SELECT id
             FROM payments
@@ -748,7 +748,7 @@ export default class DatabaseHandler {
         `, transactionID);
 
         const paymentID = rows[0]?.id;
-        if (!paymentID) return;
+        if (!paymentID) return null;
 
         ({ rows } = await this.postgres.query(`
             SELECT sub_id
@@ -757,7 +757,7 @@ export default class DatabaseHandler {
         `, paymentID));
 
         const subID = rows[0]?.sub_id;
-        if (!subID) return;
+        if (!subID) return null;
 
         ({ rows } = await this.postgres.query(`
             SELECT guild_id
@@ -766,7 +766,7 @@ export default class DatabaseHandler {
         `, subID));
 
         const guildID = rows[0]?.guild_id;
-        if (!guildID) return;
+        if (!guildID) return null;
 
         return {
             subID,
@@ -777,19 +777,19 @@ export default class DatabaseHandler {
     /**
      * Mark a payment as already reminded
      */
-    setPaymentRemindSent ({ paymentID, subID, success, kicked }) {
+    setPaymentRemindSent ({ paymentID, subID, success, kicked }: { paymentID: string, subID: string, success: boolean, kicked: boolean }): Promise<void> {
         return this.postgres.query(`
             INSERT INTO payments_reminds
             (last_payment_id, sub_id, success_sent, bot_kicked) VALUES
             ($1, $2, $3, $4);
-        `, paymentID, subID, success, kicked);
+        `, paymentID, subID, success, kicked).then(() => {});
     }
 
     /**
      * Fetch all the subscriptions that have not been paid (they have expired 3 days ago at least).
      * It also checks if a DM has already been sent to the member in charge of the subscription.
      */
-    async fetchNewlyCancelledPayments () {
+    async fetchNewlyCancelledPayments (): Promise<NewlyCancelledPayment[]> {
         const { rows } = await this.postgres.query(`
             SELECT * FROM (
                 SELECT distinct on (s.id) s.id as sub_id, p.id as payment_id, p.type, gs.guild_id, p.payer_discord_id, p.payer_discord_username, s.sub_label, s.expires_at, p.details
@@ -815,7 +815,7 @@ export default class DatabaseHandler {
             paymentID: row.payment_id,
             guildID: row.guild_id,
             subLabel: row.sub_label
-        }));
+        })) as NewlyCancelledPayment[];
     }
 
 };

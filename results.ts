@@ -79,4 +79,45 @@ export interface UserLeaderboardEntry {
     leaves: number;
     bonus: number;
     fake: number;
+};
+
+export interface GuildMember {
+    userID: string;
+    guildID: string;
+    storageID: string;
+    fake: number;
+    leaves: number;
+    bonus: number;
+    regular: number;
+    
+    notCreated: boolean;
+    invites: number;
+};
+
+type GuildMemberEventType = 'join' | 'leave';
+type GuildMemberEventJoinType = 'normal' | 'oauth' | 'vanity' | 'perm' | 'unknown';
+
+export interface GuildMemberEvent {
+    userID: string;
+    guildID: string;
+    eventType: GuildMemberEventType;
+    eventDate: number | Date;
+    joinType: GuildMemberEventJoinType;
+    inviterID: string;
+    inviteData: any;
+    storageID: string;
+    joinFake: boolean;
+};
+
+export interface TransactionData {
+    subID: string;
+    guildID: string;
+};
+
+export interface NewlyCancelledPayment {
+    payerDiscordID: string;
+    subID: string;
+    paymentID: string;
+    guildID: string;
+    subLabel: string;
 }
