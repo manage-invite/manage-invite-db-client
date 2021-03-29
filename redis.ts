@@ -7,10 +7,10 @@ interface UnknownData {
 
 export default class RedisHandler {
 
-    public connect: Promise<any>;
+    public connect: Promise<void>;
     public connectResolve?: Function;
 
-    public log: (message: string) => any;
+    public log: (message: string) => void;
     public client: Redis.Redis;
 
     constructor (redisConfig: RedisOptions, logger?: Logger) {

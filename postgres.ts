@@ -1,20 +1,27 @@
-const { Pool } = require("pg");
-const { postgres: postgresConfig } = require("../config");
-const log = require("../helpers/logger");
-module.exports = class PostgreSQL {
+import { Pool, PoolConfig } from 'pg';
+import Logger from './logger';
 
-    constructor () {
+export class PostgresHandler {
+
+    public connect: Promise<void>;
+    public connectResolve?: Function;
+
+    public client: Pool;
+    public connected: boolean;
+    public log: (message: string) => void;
+
+    constructor (postgresConfig: PoolConfig, logger?: Logger) {
 
         this.connect = new Promise((resolve) => this.connectResolve = resolve);
         this.connected = false;
-        this.log = (content) => log(content, "postgres");
+        this.log = (content) => logger?.log(content, "postgres");
 
         this.client = new Pool(postgresConfig);
         this.client.on("connect", () => {
             if (!this.connected) {
                 this.connected = true;
                 this.log("Connected.");
-                this.connectResolve();
+                if (this.connectResolve) this.connectResolve();
             }
         });
         this.client.connect();
@@ -24,7 +31,7 @@ module.exports = class PostgreSQL {
     /**
      * Query the POSTGRES database
      */
-    query (query, ...args) {
+    query (query: string, ...args: any[]) {
         return new Promise((resolve, reject) => {
             // const startAt = Date.now();
             this.client.query(query, args, (error, results) => {

@@ -9,6 +9,7 @@
     "pg": "^8.5.1"
   },
   "devDependencies": {
-    "@types/ioredis": "^4.22.1"
+    "@types/ioredis": "^4.22.1",
+    "@types/pg": "^7.14.11"
   }
 }
