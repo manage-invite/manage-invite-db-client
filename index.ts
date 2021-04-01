@@ -43,6 +43,21 @@ export = class DatabaseHandler {
     }
 
     /**
+     * Fetch the bot's current guilds
+     */
+    async fetchBotGuilds (): Promise<string[]> {
+        return this.redis.getSet('current_guilds')
+    }
+
+    /**
+     * Update the bot's current guilds
+     */
+    async updateBotGuilds (guildsIDs: string[]): Promise<void> {
+        await this.redis.deleteKey('current_guilds')
+        await this.redis.addSet('current_guilds', guildsIDs)
+    }
+
+    /**
      * Count the guild invites present in the latest storage
      */
     async countGuildInvites (guildID: string, currentStorageID: string): Promise<CountGuildInvites|null> {

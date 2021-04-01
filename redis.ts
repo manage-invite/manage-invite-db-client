@@ -25,6 +25,27 @@ export default class RedisHandler {
     }
 
     /**
+     * Get a REDIS set field
+     */
+    getSet (key: string): Promise<string[]> {
+        return this.client.smembers(key)
+    }
+
+    /**
+     * Add a value to a REDIS set
+     */
+    async addSet (key: string, value: string[]|string): Promise<void> {
+        await this.client.sadd(key, value)
+    }
+
+    /**
+     * Delete a key from REDIS
+     */
+    async deleteKey (key: string): Promise<void> {
+        await this.client.del(key)
+    }
+
+    /**
      * Get a REDIS hash field
      */
     getHashField (key: string, field: string): Promise<string|null> {
