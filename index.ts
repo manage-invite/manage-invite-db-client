@@ -166,9 +166,9 @@ export = class DatabaseHandler {
         if (redisData) return redisData as GuildSubscription[]
 
         const { rows } = await this.postgres.query(`
-            SELECT *
-            FROM subscriptions
-            INNER JOIN guilds_subscriptions ON guilds_subscriptions.sub_id = subscriptions.id
+            SELECT s.*
+            FROM subscriptions s
+            INNER JOIN guilds_subscriptions ON guilds_subscriptions.sub_id = s.id
             WHERE guilds_subscriptions.guild_id = $1;
         `, guildID)
 
@@ -695,7 +695,7 @@ export = class DatabaseHandler {
      */
     async fetchSubscriptionPayments (subID: string): Promise<SubscriptionPayment[]> {
         const { rows } = await this.postgres.query(`
-            SELECT *
+            SELECT p.*
             FROM payments p
             INNER JOIN subscriptions_payments sp ON sp.payment_id = p.id
             WHERE sp.sub_id = $1;
