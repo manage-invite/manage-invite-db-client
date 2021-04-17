@@ -31,19 +31,6 @@ module.exports = class DatabaseHandler {
         ]);
     }
     /**
-     * Fetch the bot's current guilds
-     */
-    async fetchBotGuilds() {
-        return this.redis.getSet('current_guilds');
-    }
-    /**
-     * Update the bot's current guilds
-     */
-    async updateBotGuilds(guildsIDs) {
-        await this.redis.deleteKey('current_guilds');
-        await this.redis.addSet('current_guilds', guildsIDs);
-    }
-    /**
      * Count the guild invites present in the latest storage
      */
     async countGuildInvites(guildID, currentStorageID) {
