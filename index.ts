@@ -43,6 +43,35 @@ export = class DatabaseHandler {
     }
 
     /**
+     * Fetch the revoked json web tokens
+     */
+    async fetchRevokedJWTs (): Promise<string[]> {
+        const revokedJWTs = await this.redis.getSet('revoked_jwts')
+        if (revokedJWTs) return revokedJWTs as string[]
+
+        const { rows } = await this.postgres.query(`
+            SELECT token
+            FROM revoked_jwts
+        `)
+        const tokens = rows.map((row) => row.jwt_token)
+        this.redis.addSet('revoked_jwts', tokens)
+        return tokens
+    }
+
+    /**
+     * Revoke a guild json web token
+     */
+    async revokeJWT (token: string, revokedByDiscordID: string, revokedAt: Date = new Date()): Promise<void> {
+        const redisUpdatePromise = this.redis.addSet('revoked_jwts', token)
+        const postgresUpdatePromise = this.postgres.query(`
+            INSERT INTO revoked_jwts
+            (token, revoked_by_discord_id, revoked_at) VALUES
+            ($1, $2, $3)
+        `, token, revokedByDiscordID, revokedAt.toISOString())
+        await Promise.all([ redisUpdatePromise, postgresUpdatePromise ])
+    }
+
+    /**
      * Count the guild invites present in the latest storage
      */
     async countGuildInvites (guildID: string, currentStorageID: string): Promise<CountGuildInvites|null> {
