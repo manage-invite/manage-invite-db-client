@@ -565,7 +565,7 @@ module.exports = class DatabaseHandler {
     /**
      * Get the guild leaderboard
      */
-    async fetchGuildLeaderboard(guildID, storageID) {
+    async fetchGuildLeaderboard(guildID, storageID, limit) {
         const redisData = await this.redis.getString(`guild_leaderboard_${guildID}`, true);
         if (redisData)
             return redisData;
@@ -573,7 +573,8 @@ module.exports = class DatabaseHandler {
             SELECT user_id, user_id, invites_regular, invites_leaves, invites_bonus, invites_fake
             FROM members
             WHERE guild_id = $1
-            AND storage_id = $2;
+            AND storage_id = $2
+            ${limit ? `LIMIT ${limit}` : ''};
         `, guildID, storageID);
         const formattedMembers = rows.map((row) => ({
             guildID: row.guild_id,

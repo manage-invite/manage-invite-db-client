@@ -606,7 +606,7 @@ export = class DatabaseHandler {
     /**
      * Get the guild leaderboard
      */
-    async fetchGuildLeaderboard (guildID: string, storageID: string): Promise<UserLeaderboardEntry[]> {
+    async fetchGuildLeaderboard (guildID: string, storageID: string, limit?: number): Promise<UserLeaderboardEntry[]> {
         const redisData = await this.redis.getString(`guild_leaderboard_${guildID}`, true)
         if (redisData) return redisData as UserLeaderboardEntry[]
 
@@ -614,7 +614,8 @@ export = class DatabaseHandler {
             SELECT user_id, user_id, invites_regular, invites_leaves, invites_bonus, invites_fake
             FROM members
             WHERE guild_id = $1
-            AND storage_id = $2;
+            AND storage_id = $2
+            ${limit ? `LIMIT ${limit}` : ''};
         `, guildID, storageID)
 
         const formattedMembers: UserLeaderboardEntry[] = rows.map((row) => ({
