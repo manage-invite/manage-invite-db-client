@@ -574,6 +574,7 @@ module.exports = class DatabaseHandler {
             FROM members
             WHERE guild_id = $1
             AND storage_id = $2
+            ORDER BY invites_regular + invites_leaves + invites_bonus + invites_fake DESC
             ${limit ? `LIMIT ${limit}` : ''};
         `, guildID, storageID);
         const formattedMembers = rows.map((row) => ({
