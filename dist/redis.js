@@ -19,6 +19,18 @@ class RedisHandler {
         });
     }
     /**
+     * Get a REDIS set field
+     */
+    getSet(key) {
+        return this.client.smembers(key);
+    }
+    /**
+     * Add a value to a REDIS set
+     */
+    async addSet(key, value) {
+        await this.client.sadd(key, value);
+    }
+    /**
      * Get a REDIS hash field
      */
     getHashField(key, field) {
