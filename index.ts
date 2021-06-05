@@ -43,19 +43,45 @@ export = class DatabaseHandler {
     }
 
     /**
-     * Fetch the revoked json web tokens
+     * Fetch the API token of a specific guild
      */
-    async fetchRevokedJWTs (): Promise<string[]> {
-        const revokedJWTs = await this.redis.getSet('revoked_jwts')
-        if (revokedJWTs) return revokedJWTs as string[]
+    async fetchGuildAPIToken (guildID: string): Promise<string|null> {
+        const guildAPIToken = await this.redis.getString(`api_token_${guildID}`)
+        if (guildAPIToken) return guildAPIToken as string
 
-        const { rows } = await this.postgres.query(`
+        const { rows, rowCount } = await this.postgres.query(`
             SELECT token
-            FROM revoked_jwts
-        `)
-        const tokens = rows.map((row) => row.jwt_token)
-        this.redis.addSet('revoked_jwts', tokens)
-        return tokens
+            FROM guild_api_tokens
+            WHERE revoked = false
+            AND guild_id = $1;
+        `, guildID)
+        if (rowCount === 0) return null
+        else {
+            const token = rows[0].token
+            await this.redis.setString(`api_token_${guildID}`, token)
+            return token
+        }
+    }
+
+    /**
+     * Update the API token of a specific guild
+     */
+    async updateGuildAPIToken (guildID: string, token: string, discordID: string, createdAt: Date = new Date()): Promise<void> {
+        // revoke previous tokens
+        await this.postgres.query(`
+            UPDATE guild_api_tokens
+            SET revoked = $1,
+            revoked_by_discord_id = $2,
+            revoked_at = $3
+            WHERE guild_id = $4;
+        `, true, discordID, createdAt.toISOString(), guildID)
+        const postgresUpdatePromise = this.postgres.query(`
+            INSERT INTO guild_api_tokens
+            (guild_id, token, revoked, revoked_by_discord_id, revoked_at, created_at) VALUES
+            ($1, $2, $3, $4, $5, $6)
+        `, guildID, token, false, null, null, createdAt.toISOString())
+        const redisUpdatePromise = this.redis.setString(`api_token_${guildID}`, token)
+        await Promise.all([ postgresUpdatePromise, redisUpdatePromise ])
     }
 
     /**
