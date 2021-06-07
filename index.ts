@@ -684,9 +684,9 @@ export = class DatabaseHandler {
         `, guildID, userID, storageID)
 
         const formattedMember= {
-            userID: rows[0] ? rows[0].user_id : 0,
-            guildID: rows[0] ? rows[0].guild_id : 0,
-            storageID: rows[0] ? rows[0].storage_id : storageID,
+            userID,
+            guildID,
+            storageID,
             fake: rows[0] ? rows[0].invites_fake : 0,
             leaves: rows[0] ? rows[0].invites_leaves : 0,
             bonus: rows[0] ? rows[0].invites_bonus : 0,
