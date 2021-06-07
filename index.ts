@@ -683,7 +683,7 @@ export = class DatabaseHandler {
             AND storage_id = $3;
         `, guildID, userID, storageID)
 
-        const formattedMember= {
+        const formattedMember = {
             userID,
             guildID,
             storageID,
