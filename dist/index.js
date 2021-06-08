@@ -570,7 +570,7 @@ module.exports = class DatabaseHandler {
         if (redisData)
             return redisData;
         const { rows } = await this.postgres.query(`
-            SELECT user_id, user_id, invites_regular, invites_leaves, invites_bonus, invites_fake
+            SELECT guild_id, user_id, user_id, invites_regular, invites_leaves, invites_bonus, invites_fake
             FROM members
             WHERE guild_id = $1
             AND storage_id = $2
