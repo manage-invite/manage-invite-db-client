@@ -352,7 +352,7 @@ module.exports = class DatabaseHandler {
      * Update a property of a guild settings
      */
     async updateGuildSetting(guildID, settingName, newSettingValue) {
-        if (!["language", "prefix", "cmd_channel", "fake_treshold", "keep_ranks", "stacked_ranks", "storage_id"].includes(change_case_1.snakeCase(settingName)))
+        if (!["language", "prefix", "cmd_channel", "fake_threshold", "keep_ranks", "stacked_ranks", "storage_id"].includes(change_case_1.snakeCase(settingName)))
             throw new Error("unknown_guild_setting");
         const redisUpdatePromise = this.redis.setHash(`guild_${guildID}`, {
             [settingName]: newSettingValue

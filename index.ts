@@ -386,7 +386,7 @@ export = class DatabaseHandler {
      * Update a property of a guild settings
      */
     async updateGuildSetting (guildID: string, settingName: keyof GuildSettings, newSettingValue: unknown): Promise<void> {
-        if (!["language", "prefix", "cmd_channel", "fake_treshold", "keep_ranks", "stacked_ranks", "storage_id"].includes(snakeCase(settingName))) throw new Error("unknown_guild_setting")
+        if (!["language", "prefix", "cmd_channel", "fake_threshold", "keep_ranks", "stacked_ranks", "storage_id"].includes(snakeCase(settingName))) throw new Error("unknown_guild_setting")
         const redisUpdatePromise = this.redis.setHash(`guild_${guildID}`, {
             [settingName]: newSettingValue
         })
