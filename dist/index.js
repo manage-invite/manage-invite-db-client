@@ -314,8 +314,8 @@ module.exports = class DatabaseHandler {
                 prefix: redisData.prefix,
                 keepRanks: redisData.keepRanks === "true",
                 stackedRanks: redisData.stackedRanks === "true",
-                cmdChannel: redisData.cmdChannel,
-                fakeThreshold: parseInt(redisData.fakeThreshold)
+                cmdChannel: redisData.cmdChannel || null,
+                fakeThreshold: redisData.fakeThreshold ? parseInt(redisData.fakeThreshold) : null
             };
         let { rows } = await this.postgres.query(`
             SELECT *
