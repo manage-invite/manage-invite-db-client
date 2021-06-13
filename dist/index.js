@@ -488,6 +488,7 @@ module.exports = class DatabaseHandler {
      * Add X invites to a member / the server
      */
     async addInvites({ userID, guildID, storageID, number, type }) {
+        this.redis.delete(`guild_leaderboard_${guildID}_${storageID}`);
         const redisUpdatePromise = this.redis.incrHashBy(`member_${userID}_${guildID}_${storageID}`, type, number);
         const postgresUpdatePromise = this.postgres.query(`
             UPDATE members
@@ -502,6 +503,7 @@ module.exports = class DatabaseHandler {
      * Add invites to a server
      */
     async addGuildInvites({ usersID, guildID, storageID, number, type }) {
+        this.redis.delete(`guild_leaderboard_${guildID}_${storageID}`);
         const redisUpdates = usersID.map((userID) => this.redis.incrHashBy(`member_${userID}_${guildID}_${storageID}`, type, number));
         const postgresUpdate = this.postgres.query(`
             UPDATE members
@@ -566,7 +568,7 @@ module.exports = class DatabaseHandler {
      * Get the guild leaderboard
      */
     async fetchGuildLeaderboard(guildID, storageID, limit) {
-        const redisData = await this.redis.getString(`guild_leaderboard_${guildID}`, true);
+        const redisData = await this.redis.getString(`guild_leaderboard_${guildID}_${storageID}`, true);
         if (redisData)
             return redisData;
         const { rows } = await this.postgres.query(`
@@ -586,8 +588,8 @@ module.exports = class DatabaseHandler {
             bonus: row.invites_bonus,
             fake: row.invites_fake
         }));
-        this.redis.setString(`guild_leaderboard_${guildID}`, JSON.stringify(formattedMembers));
-        this.redis.client.expire(`guild_leaderboard_${guildID}`, 10);
+        this.redis.setString(`guild_leaderboard_${guildID}_${storageID}`, JSON.stringify(formattedMembers));
+        this.redis.client.expire(`guild_leaderboard_${guildID}_${storageID}`, 10);
         return formattedMembers;
     }
     /**

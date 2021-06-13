@@ -524,6 +524,7 @@ export = class DatabaseHandler {
      * Add X invites to a member / the server
      */
     async addInvites ({ userID, guildID, storageID, number, type }: { userID: string, guildID: string, storageID: string, number: number, type: InviteType}): Promise<void> {
+        this.redis.delete(`guild_leaderboard_${guildID}_${storageID}`)
         const redisUpdatePromise = this.redis.incrHashBy(`member_${userID}_${guildID}_${storageID}`, type, number)
         const postgresUpdatePromise = this.postgres.query(`
             UPDATE members
@@ -539,6 +540,7 @@ export = class DatabaseHandler {
      * Add invites to a server
      */
     async addGuildInvites ({ usersID, guildID, storageID, number, type }: { usersID: string[], guildID: string, storageID: string, number: number, type: InviteType }): Promise<void> {
+        this.redis.delete(`guild_leaderboard_${guildID}_${storageID}`)
         const redisUpdates = usersID.map((userID) => this.redis.incrHashBy(`member_${userID}_${guildID}_${storageID}`, type, number))
         const postgresUpdate = this.postgres.query(`
             UPDATE members
@@ -607,7 +609,7 @@ export = class DatabaseHandler {
      * Get the guild leaderboard
      */
     async fetchGuildLeaderboard (guildID: string, storageID: string, limit?: number): Promise<UserLeaderboardEntry[]> {
-        const redisData = await this.redis.getString(`guild_leaderboard_${guildID}`, true)
+        const redisData = await this.redis.getString(`guild_leaderboard_${guildID}_${storageID}`, true)
         if (redisData) return redisData as UserLeaderboardEntry[]
 
         const { rows } = await this.postgres.query(`
@@ -629,8 +631,8 @@ export = class DatabaseHandler {
             fake: row.invites_fake
         }))
 
-        this.redis.setString(`guild_leaderboard_${guildID}`, JSON.stringify(formattedMembers))
-        this.redis.client.expire(`guild_leaderboard_${guildID}`, 10)
+        this.redis.setString(`guild_leaderboard_${guildID}_${storageID}`, JSON.stringify(formattedMembers))
+        this.redis.client.expire(`guild_leaderboard_${guildID}_${storageID}`, 10)
 
         return formattedMembers
     }

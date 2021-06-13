@@ -111,4 +111,11 @@ export default class RedisHandler {
         })
     }
 
+    /**
+     * Delete a key from REDIS
+     */
+    delete (key: string): Promise<number> {
+        return this.client.del(key)
+    }
+
 }

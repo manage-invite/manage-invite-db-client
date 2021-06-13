@@ -93,5 +93,11 @@ class RedisHandler {
             });
         });
     }
+    /**
+     * Delete a key from REDIS
+     */
+    delete(key) {
+        return this.client.del(key);
+    }
 }
 exports.default = RedisHandler;
