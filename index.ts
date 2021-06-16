@@ -4,7 +4,7 @@ import RedisHandler from "./redis"
 import { snakeCase } from 'change-case'
 import { RedisOptions } from "ioredis"
 import { PoolConfig, QueryResultRow } from "pg"
-import { CountGuildInvites, GuildPlugin, GuildRank, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry, GuildMember, GuildMemberEvent, TransactionData, NewlyCancelledPayment } from "./results"
+import { CountGuildInvites, GuildPlugin, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry, GuildMember, GuildMemberEvent, TransactionData, NewlyCancelledPayment } from "./results"
 import { LogFunction } from "./log"
 
 const formatPayment = (paymentRow: QueryResultRow): SubscriptionPayment => ({
@@ -340,8 +340,6 @@ export = class DatabaseHandler {
             storageID: redisData.storageID,
             language: redisData.language,
             prefix: redisData.prefix,
-            keepRanks: redisData.keepRanks === "true",
-            stackedRanks: redisData.stackedRanks === "true",
             cmdChannel: redisData.cmdChannel || null,
             fakeThreshold: redisData.fakeThreshold ? parseInt(redisData.fakeThreshold) : null
         } as GuildSettings
@@ -355,7 +353,7 @@ export = class DatabaseHandler {
         if (!rows[0]) {
             ({ rows } = await this.postgres.query(`
                 INSERT INTO guilds
-                (guild_id, guild_language, guild_prefix, guild_keep_ranks, guild_stacked_ranks, guild_cmd_channel, guild_fake_threshold, guild_storage_id) VALUES
+                (guild_id, guild_language, guild_prefix, guild_cmd_channel, guild_fake_threshold, guild_storage_id) VALUES
                 ($1, 'en-US', '+', false, false, null, null, $2)
                 RETURNING guild_storage_id;
             `, guildID, generateStorageID()))
@@ -371,8 +369,6 @@ export = class DatabaseHandler {
             storageID: rows[0].guild_storage_id,
             language: rows[0].guild_language,
             prefix: rows[0].guild_prefix,
-            keepRanks: rows[0].guild_keep_ranks,
-            stackedRanks: rows[0].guild_stacked_ranks,
             cmdChannel: rows[0].guild_cmd_channel,
             fakeThreshold: rows[0].guild_fake_threshold
         }
@@ -386,7 +382,7 @@ export = class DatabaseHandler {
      * Update a property of a guild settings
      */
     async updateGuildSetting (guildID: string, settingName: keyof GuildSettings, newSettingValue: unknown): Promise<void> {
-        if (!["language", "prefix", "cmd_channel", "fake_threshold", "keep_ranks", "stacked_ranks", "storage_id"].includes(snakeCase(settingName))) throw new Error("unknown_guild_setting")
+        if (!["language", "prefix", "cmd_channel", "fake_threshold", "storage_id"].includes(snakeCase(settingName))) throw new Error("unknown_guild_setting")
         const redisUpdatePromise = this.redis.setHash(`guild_${guildID}`, {
             [settingName]: newSettingValue
         })
@@ -396,68 +392,6 @@ export = class DatabaseHandler {
             WHERE guild_id = $2;
         `, newSettingValue, guildID)
         await Promise.all([ redisUpdatePromise, postgresUpdatePromise ])
-    }
-
-    /**
-     * Add a new guild rank
-     */
-    async addGuildRank (guildID: string, roleID: string, inviteCount: number): Promise<void> {
-        const redisUpdatePromise = this.redis.getString(`guild_ranks_${guildID}`, true).then((ranks) => {
-            if (!ranks) return
-            const newRanks = [
-                ...(ranks as GuildRank[]),
-                {
-                    guildID,
-                    roleID,
-                    inviteCount
-                }
-            ]
-            return this.redis.setString(`guild_ranks_${guildID}`, JSON.stringify(newRanks))
-        })
-        const postgresUpdatePromise = this.postgres.query(`
-            INSERT INTO guild_ranks
-            (guild_id, role_id, invite_count) VALUES
-            ($1, $2, $3)
-        `, guildID, roleID, inviteCount)
-        await Promise.all([ redisUpdatePromise, postgresUpdatePromise ])
-    }
-
-    /**
-     * Remove an existing guild rank
-     */
-    async removeGuildRank (guildID: string, roleID: string): Promise<void> {
-        const redisUpdatePromise = this.redis.getString(`guild_ranks_${guildID}`, true).then((ranks) => {
-            if (!ranks) return
-            const newRanks = (ranks as GuildRank[]).filter((rank) => rank.roleID !== roleID)
-            return this.redis.setString(`guild_ranks_${guildID}`, JSON.stringify(newRanks))
-        })
-        const postgresUpdatePromise = this.postgres.query(`
-            DELETE FROM guild_ranks
-            WHERE role_id = $1
-            AND guild_id = $2;
-        `, roleID, guildID)
-        await Promise.all([ redisUpdatePromise, postgresUpdatePromise ])
-    }
-
-    /**
-     * Get the ranks of a guild
-     */
-    async fetchGuildRanks (guildID: string): Promise<GuildRank[]> {
-        const redisData = await this.redis.getString(`guild_ranks_${guildID}`, true)
-        if (redisData) return redisData as GuildRank[]
-
-        const { rows } = await this.postgres.query(`
-            SELECT *
-            FROM guild_ranks
-            WHERE guild_id = $1;
-        `, guildID)
-        const formattedRanks: GuildRank[] = rows.map((row) => ({
-            guildID: row.guild_id,
-            roleID: row.role_id,
-            inviteCount: row.invite_count
-        }))
-        this.redis.setString(`guild_ranks_${guildID}`, JSON.stringify(formattedRanks))
-        return formattedRanks
     }
 
     /**

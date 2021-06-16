@@ -43,8 +43,6 @@ export interface GuildSettings {
     storageID: string;
     language: string;
     prefix: string;
-    keepRanks: boolean;
-    stackedRanks: boolean;
     cmdChannel: string;
     fakeThreshold: number;
 }
@@ -58,12 +56,6 @@ export interface PremiumStatus {
 export interface GuildSubscriptionStatus {
     isPayPal: boolean;
     isCancelled: boolean;
-}
-
-export interface GuildRank {
-    guildID: string;
-    roleID: string;
-    inviteCount: number;
 }
 
 export interface GuildPlugin {
