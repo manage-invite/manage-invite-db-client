@@ -427,7 +427,14 @@ module.exports = class DatabaseHandler {
     async fetchGuildAlerts(guildID) {
         const redisData = await this.redis.getString(`guild_alerts_${guildID}`, true);
         if (redisData)
-            return redisData;
+            return redisData.map((data) => ({
+                id: parseInt(data.id),
+                guildID: data.guildID,
+                inviteCount: parseInt(data.inviteCount),
+                channelID: data.channelID,
+                message: data.message,
+                type: data.type
+            }));
         const { rows } = await this.postgres.query(`
             SELECT *
             FROM guild_alerts

@@ -460,7 +460,14 @@ export = class DatabaseHandler {
      */
     async fetchGuildAlerts (guildID: string): Promise<GuildAlert[]> {
         const redisData = await this.redis.getString(`guild_alerts_${guildID}`, true)
-        if (redisData) return redisData as GuildAlert[]
+        if (redisData) return (redisData as Record<string, unknown>[]).map((data) => ({
+            id: parseInt(data.id as string),
+            guildID: data.guildID,
+            inviteCount: parseInt(data.inviteCount as string),
+            channelID: data.channelID,
+            message: data.message,
+            type: data.type
+        })) as GuildAlert[]
 
         const { rows } = await this.postgres.query(`
             SELECT *
