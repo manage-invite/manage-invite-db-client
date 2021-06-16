@@ -381,7 +381,7 @@ module.exports = class DatabaseHandler {
     async addGuildAlert(guildID, inviteCount, channelID, message, type) {
         const { rows } = await this.postgres.query(`
             INSERT INTO guild_alerts
-            (guild_id, invite_count, channel_id, message, type) VALUES
+            (guild_id, invite_count, channel_id, message, alert_type) VALUES
             ($1, $2, $3, $4, $5)
             RETURNING id;
         `, guildID, inviteCount, channelID, message, type);
