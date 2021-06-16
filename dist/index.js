@@ -312,8 +312,6 @@ module.exports = class DatabaseHandler {
                 storageID: redisData.storageID,
                 language: redisData.language,
                 prefix: redisData.prefix,
-                keepRanks: redisData.keepRanks === "true",
-                stackedRanks: redisData.stackedRanks === "true",
                 cmdChannel: redisData.cmdChannel || null,
                 fakeThreshold: redisData.fakeThreshold ? parseInt(redisData.fakeThreshold) : null
             };
@@ -325,7 +323,7 @@ module.exports = class DatabaseHandler {
         if (!rows[0]) {
             ({ rows } = await this.postgres.query(`
                 INSERT INTO guilds
-                (guild_id, guild_language, guild_prefix, guild_keep_ranks, guild_stacked_ranks, guild_cmd_channel, guild_fake_threshold, guild_storage_id) VALUES
+                (guild_id, guild_language, guild_prefix, guild_cmd_channel, guild_fake_threshold, guild_storage_id) VALUES
                 ($1, 'en-US', '+', false, false, null, null, $2)
                 RETURNING guild_storage_id;
             `, guildID, generateStorageID()));
@@ -340,8 +338,6 @@ module.exports = class DatabaseHandler {
             storageID: rows[0].guild_storage_id,
             language: rows[0].guild_language,
             prefix: rows[0].guild_prefix,
-            keepRanks: rows[0].guild_keep_ranks,
-            stackedRanks: rows[0].guild_stacked_ranks,
             cmdChannel: rows[0].guild_cmd_channel,
             fakeThreshold: rows[0].guild_fake_threshold
         };
@@ -352,7 +348,7 @@ module.exports = class DatabaseHandler {
      * Update a property of a guild settings
      */
     async updateGuildSetting(guildID, settingName, newSettingValue) {
-        if (!["language", "prefix", "cmd_channel", "fake_threshold", "keep_ranks", "stacked_ranks", "storage_id"].includes(change_case_1.snakeCase(settingName)))
+        if (!["language", "prefix", "cmd_channel", "fake_threshold", "storage_id"].includes(change_case_1.snakeCase(settingName)))
             throw new Error("unknown_guild_setting");
         const redisUpdatePromise = this.redis.setHash(`guild_${guildID}`, {
             [settingName]: newSettingValue
@@ -365,65 +361,86 @@ module.exports = class DatabaseHandler {
         await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
-     * Add a new guild rank
+     * Update a property of a guild alert
      */
-    async addGuildRank(guildID, roleID, inviteCount) {
-        const redisUpdatePromise = this.redis.getString(`guild_ranks_${guildID}`, true).then((ranks) => {
-            if (!ranks)
+    async updateGuildAlert(guildID, inviteCount, settingName, newSettingValue) {
+        if (!["channel_id", "up", "down", "message"].includes(change_case_1.snakeCase(settingName)))
+            throw new Error("unknown_guild_alert_setting");
+        const redisUpdatePromise = this.redis.delete(`guild_alerts_${guildID}`);
+        const postgresUpdatePromise = this.postgres.query(`
+            UPDATE guild_alerts
+            SET guild_${change_case_1.snakeCase(settingName)} = $1
+            WHERE invite_count = $2
+            AND guild_id = $3;
+        `, newSettingValue, inviteCount, guildID);
+        await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
+    }
+    /**
+     * Add a new guild alert
+     */
+    async addGuildAlert(guildID, inviteCount, channelID, message, up, down) {
+        const redisUpdatePromise = this.redis.getString(`guild_alerts_${guildID}`, true).then((alerts) => {
+            if (!alerts)
                 return;
-            const newRanks = [
-                ...ranks,
+            const newAlerts = [
+                ...alerts,
                 {
                     guildID,
-                    roleID,
-                    inviteCount
+                    inviteCount,
+                    channelID,
+                    message,
+                    up,
+                    down
                 }
             ];
-            return this.redis.setString(`guild_ranks_${guildID}`, JSON.stringify(newRanks));
+            return this.redis.setString(`guild_alerts_${guildID}`, JSON.stringify(newAlerts));
         });
         const postgresUpdatePromise = this.postgres.query(`
-            INSERT INTO guild_ranks
-            (guild_id, role_id, invite_count) VALUES
+            INSERT INTO guild_alerts
+            (guild_id, invite_count, channel_id, message, up, down) VALUES
             ($1, $2, $3)
-        `, guildID, roleID, inviteCount);
+        `, guildID, inviteCount, channelID, message, up, down);
         await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
-     * Remove an existing guild rank
+     * Remove an existing guild alert
      */
-    async removeGuildRank(guildID, roleID) {
-        const redisUpdatePromise = this.redis.getString(`guild_ranks_${guildID}`, true).then((ranks) => {
-            if (!ranks)
+    async removeGuildAlert(guildID, inviteCount) {
+        const redisUpdatePromise = this.redis.getString(`guild_alerts_${guildID}`, true).then((alerts) => {
+            if (!alerts)
                 return;
-            const newRanks = ranks.filter((rank) => rank.roleID !== roleID);
-            return this.redis.setString(`guild_ranks_${guildID}`, JSON.stringify(newRanks));
+            const newAlerts = alerts.filter((alert) => alert.inviteCount !== inviteCount);
+            return this.redis.setString(`guild_alerts_${guildID}`, JSON.stringify(newAlerts));
         });
         const postgresUpdatePromise = this.postgres.query(`
-            DELETE FROM guild_ranks
-            WHERE role_id = $1
+            DELETE FROM guild_alerts
+            WHERE invite_count = $1
             AND guild_id = $2;
-        `, roleID, guildID);
+        `, inviteCount, guildID);
         await Promise.all([redisUpdatePromise, postgresUpdatePromise]);
     }
     /**
-     * Get the ranks of a guild
+     * Get the alerts of a guild
      */
-    async fetchGuildRanks(guildID) {
-        const redisData = await this.redis.getString(`guild_ranks_${guildID}`, true);
+    async fetchGuildAlerts(guildID) {
+        const redisData = await this.redis.getString(`guild_alerts_${guildID}`, true);
         if (redisData)
             return redisData;
         const { rows } = await this.postgres.query(`
             SELECT *
-            FROM guild_ranks
+            FROM guild_alerts
             WHERE guild_id = $1;
         `, guildID);
-        const formattedRanks = rows.map((row) => ({
+        const formattedAlerts = rows.map((row) => ({
             guildID: row.guild_id,
-            roleID: row.role_id,
-            inviteCount: row.invite_count
+            inviteCount: row.invite_count,
+            channelID: row.channel_id,
+            message: row.message,
+            up: row.up,
+            down: row.down
         }));
-        this.redis.setString(`guild_ranks_${guildID}`, JSON.stringify(formattedRanks));
-        return formattedRanks;
+        this.redis.setString(`guild_alerts_${guildID}`, JSON.stringify(formattedAlerts));
+        return formattedAlerts;
     }
     /**
      * Get the plugins of a guild

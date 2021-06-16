@@ -58,6 +58,15 @@ export interface GuildSubscriptionStatus {
     isCancelled: boolean;
 }
 
+export interface GuildAlert {
+    guildID: string;
+    inviteCount: number;
+    channelID: string;
+    message: string;
+    up: boolean;
+    down: boolean;
+}
+
 export interface GuildPlugin {
     guildID: string;
     pluginName: string;

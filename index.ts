@@ -4,7 +4,7 @@ import RedisHandler from "./redis"
 import { snakeCase } from 'change-case'
 import { RedisOptions } from "ioredis"
 import { PoolConfig, QueryResultRow } from "pg"
-import { CountGuildInvites, GuildPlugin, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry, GuildMember, GuildMemberEvent, TransactionData, NewlyCancelledPayment } from "./results"
+import { CountGuildInvites, GuildPlugin, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry, GuildMember, GuildMemberEvent, TransactionData, NewlyCancelledPayment, GuildAlert } from "./results"
 import { LogFunction } from "./log"
 
 const formatPayment = (paymentRow: QueryResultRow): SubscriptionPayment => ({
@@ -392,6 +392,89 @@ export = class DatabaseHandler {
             WHERE guild_id = $2;
         `, newSettingValue, guildID)
         await Promise.all([ redisUpdatePromise, postgresUpdatePromise ])
+    }
+
+    /**
+     * Update a property of a guild alert
+     */
+     async updateGuildAlert (guildID: string, inviteCount: number, settingName: keyof GuildAlert, newSettingValue: unknown): Promise<void> {
+        if (!["channel_id", "up", "down", "message"].includes(snakeCase(settingName))) throw new Error("unknown_guild_alert_setting")
+        const redisUpdatePromise = this.redis.delete(`guild_alerts_${guildID}`)
+        const postgresUpdatePromise = this.postgres.query(`
+            UPDATE guild_alerts
+            SET guild_${snakeCase(settingName)} = $1
+            WHERE invite_count = $2
+            AND guild_id = $3;
+        `, newSettingValue, inviteCount, guildID)
+        await Promise.all([ redisUpdatePromise, postgresUpdatePromise ])
+    }
+
+    /**
+     * Add a new guild alert
+     */
+     async addGuildAlert (guildID: string, inviteCount: number, channelID: string, message: string, up: boolean, down: boolean): Promise<void> {
+        const redisUpdatePromise = this.redis.getString(`guild_alerts_${guildID}`, true).then((alerts) => {
+            if (!alerts) return
+            const newAlerts = [
+                ...(alerts as GuildAlert[]),
+                {
+                    guildID,
+                    inviteCount,
+                    channelID,
+                    message,
+                    up,
+                    down
+                }
+            ]
+            return this.redis.setString(`guild_alerts_${guildID}`, JSON.stringify(newAlerts))
+        })
+        const postgresUpdatePromise = this.postgres.query(`
+            INSERT INTO guild_alerts
+            (guild_id, invite_count, channel_id, message, up, down) VALUES
+            ($1, $2, $3)
+        `, guildID, inviteCount, channelID, message, up, down)
+        await Promise.all([ redisUpdatePromise, postgresUpdatePromise ])
+    }
+
+    /**
+     * Remove an existing guild alert
+     */
+    async removeGuildAlert (guildID: string, inviteCount: number): Promise<void> {
+        const redisUpdatePromise = this.redis.getString(`guild_alerts_${guildID}`, true).then((alerts) => {
+            if (!alerts) return
+            const newAlerts = (alerts as GuildAlert[]).filter((alert) => alert.inviteCount !== inviteCount)
+            return this.redis.setString(`guild_alerts_${guildID}`, JSON.stringify(newAlerts))
+        })
+        const postgresUpdatePromise = this.postgres.query(`
+            DELETE FROM guild_alerts
+            WHERE invite_count = $1
+            AND guild_id = $2;
+        `, inviteCount, guildID)
+        await Promise.all([ redisUpdatePromise, postgresUpdatePromise ])
+    }
+
+    /**
+     * Get the alerts of a guild
+     */
+    async fetchGuildAlerts (guildID: string): Promise<GuildAlert[]> {
+        const redisData = await this.redis.getString(`guild_alerts_${guildID}`, true)
+        if (redisData) return redisData as GuildAlert[]
+
+        const { rows } = await this.postgres.query(`
+            SELECT *
+            FROM guild_alerts
+            WHERE guild_id = $1;
+        `, guildID)
+        const formattedAlerts: GuildAlert[] = rows.map((row) => ({
+            guildID: row.guild_id,
+            inviteCount: row.invite_count,
+            channelID: row.channel_id,
+            message: row.message,
+            up: row.up,
+            down: row.down
+        }))
+        this.redis.setString(`guild_alerts_${guildID}`, JSON.stringify(formattedAlerts))
+        return formattedAlerts
     }
 
     /**
