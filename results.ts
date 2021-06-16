@@ -59,12 +59,12 @@ export interface GuildSubscriptionStatus {
 }
 
 export interface GuildAlert {
+    id: number;
     guildID: string;
     inviteCount: number;
     channelID: string;
     message: string;
-    up: boolean;
-    down: boolean;
+    type: string;
 }
 
 export interface GuildPlugin {
