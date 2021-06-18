@@ -397,7 +397,7 @@ export = class DatabaseHandler {
     /**
      * Update a property of a guild alert
      */
-     async updateGuildAlert (guildID: string, alertID: number, settingName: keyof GuildAlert, newSettingValue: unknown): Promise<void> {
+     async updateGuildAlert (guildID: string, alertID: number, settingName: keyof GuildAlert | 'alert_type', newSettingValue: unknown): Promise<void> {
         if (!["channel_id", "message", "invite_count", "alert_type"].includes(snakeCase(settingName))) throw new Error("unknown_guild_alert_setting")
         const redisUpdatePromise = this.redis.delete(`guild_alerts_${guildID}`)
         const postgresUpdatePromise = this.postgres.query(`
