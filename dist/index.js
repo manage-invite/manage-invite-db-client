@@ -369,7 +369,7 @@ module.exports = class DatabaseHandler {
         const redisUpdatePromise = this.redis.delete(`guild_alerts_${guildID}`);
         const postgresUpdatePromise = this.postgres.query(`
             UPDATE guild_alerts
-            SET guild_${change_case_1.snakeCase(settingName)} = $1
+            SET ${change_case_1.snakeCase(settingName)} = $1
             WHERE id = $2
             AND guild_id = $3;
         `, newSettingValue, alertID, guildID);
