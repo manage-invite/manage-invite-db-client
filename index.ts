@@ -354,7 +354,7 @@ export = class DatabaseHandler {
             ({ rows } = await this.postgres.query(`
                 INSERT INTO guilds
                 (guild_id, guild_language, guild_prefix, guild_cmd_channel, guild_fake_threshold, guild_storage_id) VALUES
-                ($1, 'en-US', '+', false, false, null, null, $2)
+                ($1, 'en-US', '+', null, null, $2)
                 RETURNING guild_storage_id;
             `, guildID, generateStorageID()))
             await this.postgres.query(`
