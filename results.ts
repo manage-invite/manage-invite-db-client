@@ -1,4 +1,6 @@
+export type Snowflake = `${bigint}`
 export type InviteType = 'leaves' | 'regular' | 'fake' | 'bonus'
+export type PluginName = 'join' | 'leave' | 'joinDM'
 
 export interface CountGuildInvites {
     leaves: number;
@@ -8,7 +10,7 @@ export interface CountGuildInvites {
 }
 
 export interface GuildStorage {
-    guildID: string;
+    guildID: Snowflake;
     storageID: string;
     createdAt: number;
 }
@@ -39,7 +41,7 @@ export interface SubscriptionPayment {
 }
 
 export interface GuildSettings {
-    guildID: string;
+    guildID: Snowflake;
     storageID: string;
     language: string;
     prefix: string;
@@ -48,7 +50,7 @@ export interface GuildSettings {
 }
 
 export interface PremiumStatus {
-    guildID: string;
+    guildID: Snowflake;
     isPremium: boolean;
     isTrial: boolean;
 }
@@ -60,7 +62,7 @@ export interface GuildSubscriptionStatus {
 
 export interface GuildAlert {
     id: number;
-    guildID: string;
+    guildID: Snowflake;
     inviteCount: number;
     channelID: string;
     message: string;
@@ -68,8 +70,8 @@ export interface GuildAlert {
 }
 
 export interface GuildPlugin {
-    guildID: string;
-    pluginName: string;
+    guildID: Snowflake;
+    pluginName: PluginName;
     pluginData: Record<string, unknown>;
 }
 
@@ -84,7 +86,7 @@ export interface UserLeaderboardEntry {
 
 export interface GuildMember {
     userID: string;
-    guildID: string;
+    guildID: Snowflake;
     storageID: string;
     fake: number;
     leaves: number;
@@ -100,7 +102,7 @@ type GuildMemberEventJoinType = 'normal' | 'oauth' | 'vanity' | 'perm' | 'unknow
 
 export interface GuildMemberEvent {
     userID: string;
-    guildID: string;
+    guildID: Snowflake;
     eventType: GuildMemberEventType;
     eventDate: number | Date;
     joinType: GuildMemberEventJoinType;
@@ -112,13 +114,13 @@ export interface GuildMemberEvent {
 
 export interface TransactionData {
     subID: string;
-    guildID: string;
+    guildID: Snowflake;
 }
 
 export interface NewlyCancelledPayment {
     payerDiscordID: string;
     subID: string;
     paymentID: string;
-    guildID: string;
+    guildID: Snowflake;
     subLabel: string;
 }

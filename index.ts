@@ -4,7 +4,7 @@ import RedisHandler from "./redis"
 import { snakeCase } from 'change-case'
 import { RedisOptions } from "ioredis"
 import { PoolConfig, QueryResultRow } from "pg"
-import { CountGuildInvites, GuildPlugin, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry, GuildMember, GuildMemberEvent, TransactionData, NewlyCancelledPayment, GuildAlert } from "./results"
+import { CountGuildInvites, GuildPlugin, GuildSettings, GuildStorage, GuildSubscription, GuildSubscriptionStatus, PremiumStatus, SubscriptionPayment, InviteType, UserLeaderboardEntry, GuildMember, GuildMemberEvent, TransactionData, NewlyCancelledPayment, GuildAlert, PluginName, Snowflake } from "./results"
 import { LogFunction } from "./log"
 
 const formatPayment = (paymentRow: QueryResultRow): SubscriptionPayment => ({
@@ -45,7 +45,7 @@ export = class DatabaseHandler {
     /**
      * Fetch the API token of a specific guild
      */
-    async fetchGuildAPIToken (guildID: string): Promise<string|null> {
+    async fetchGuildAPIToken (guildID: Snowflake): Promise<string|null> {
         const guildAPIToken = await this.redis.getString(`api_token_${guildID}`)
         if (guildAPIToken) return guildAPIToken as string
 
@@ -66,7 +66,7 @@ export = class DatabaseHandler {
     /**
      * Update the API token of a specific guild
      */
-    async updateGuildAPIToken (guildID: string, token: string, discordID: string, createdAt: Date = new Date()): Promise<void> {
+    async updateGuildAPIToken (guildID: Snowflake, token: string, discordID: string, createdAt: Date = new Date()): Promise<void> {
         // revoke previous tokens
         await this.postgres.query(`
             UPDATE guild_api_tokens
@@ -100,7 +100,7 @@ export = class DatabaseHandler {
     /**
      * Count the guild invites present in the latest storage
      */
-    async countGuildInvites (guildID: string, currentStorageID: string): Promise<CountGuildInvites|null> {
+    async countGuildInvites (guildID: Snowflake, currentStorageID: string): Promise<CountGuildInvites|null> {
         const guildStorages = await this.fetchGuildStorages(guildID)
         const previousStorageID = guildStorages
             .filter((storage) => storage.storageID !== currentStorageID)
@@ -130,7 +130,7 @@ export = class DatabaseHandler {
      * Remove the guild invites by creating a new storage
      * and change the guild settings so it's the default one
      */
-    async removeGuildInvites (guildID: string): Promise<string> {
+    async removeGuildInvites (guildID: Snowflake): Promise<string> {
         const { rows } = await this.postgres.query(`
             UPDATE guilds
             SET guild_storage_id = $1
@@ -155,7 +155,7 @@ export = class DatabaseHandler {
     /**
      * Fetches all the guild storages
      */
-    async fetchGuildStorages (guildID: string): Promise<GuildStorage[]> {
+    async fetchGuildStorages (guildID: Snowflake): Promise<GuildStorage[]> {
         const { rows } = await this.postgres.query(`
             SELECT *
             FROM guild_storages
@@ -171,7 +171,7 @@ export = class DatabaseHandler {
     /**
      * Restore a guild storage by chnging the guild settings
      */
-    async restoreGuildStorage ({ guildID, storageID }: { guildID: string, storageID: string }): Promise<void> {
+    async restoreGuildStorage ({ guildID, storageID }: { guildID: Snowflake, storageID: string }): Promise<void> {
         const redisUpdatePromise = this.redis.setHash(`guild_${guildID}`, {
             storageID
         })
@@ -187,7 +187,7 @@ export = class DatabaseHandler {
     /**
      * Restore the guild invites by changing back the storage id
      */
-    async restoreGuildInvites (guildID: string, currentStorageID: string): Promise<void> {
+    async restoreGuildInvites (guildID: Snowflake, currentStorageID: string): Promise<void> {
         const guildStorages = await this.fetchGuildStorages(guildID)
         const latestStorageID = guildStorages
             .filter((storage) => storage.storageID !== currentStorageID)
@@ -201,7 +201,7 @@ export = class DatabaseHandler {
     /**
      * Fetches the guild subscriptions
      */
-    async fetchGuildSubscriptions (guildID: string): Promise<GuildSubscription[]> {
+    async fetchGuildSubscriptions (guildID: Snowflake): Promise<GuildSubscription[]> {
         const redisData = await this.redis.getString(`guild_subscriptions_${guildID}`, true)
         if (redisData) return redisData as GuildSubscription[]
 
@@ -250,7 +250,7 @@ export = class DatabaseHandler {
     /**
      * Create a subscription for the given guild
      */
-    async createGuildSubscription (guildID: string, { expiresAt = new Date(), createdAt = new Date(), subLabel, guildsCount = 1, patreonUserID }: Partial<GuildSubscription>): Promise<GuildSubscription> {
+    async createGuildSubscription (guildID: Snowflake, { expiresAt = new Date(), createdAt = new Date(), subLabel, guildsCount = 1, patreonUserID }: Partial<GuildSubscription>): Promise<GuildSubscription> {
         const { rows } = await this.postgres.query(`
             INSERT INTO subscriptions
             (expires_at, created_at, sub_label, guilds_count, patreon_user_id) VALUES
@@ -283,7 +283,7 @@ export = class DatabaseHandler {
     /**
      * Update a property of the guild subscription
      */
-    async updateGuildSubscription (subID: string, guildID: string, settingName: keyof GuildSubscription, newSettingValue: unknown): Promise<void> {
+    async updateGuildSubscription (subID: string, guildID: Snowflake, settingName: keyof GuildSubscription, newSettingValue: unknown): Promise<void> {
         if (!["expires_at", "created_at", "sub_label", "guilds_count", "patreon_user_id", "cancelled", "sub_invalidated"].includes(snakeCase(settingName))) throw new Error("unknown_guild_setting")
         const redisUpdatePromise = this.redis.getString(`guild_subscriptions_${guildID}`, true).then((guildSubscriptions) => {
             if (guildSubscriptions) {
@@ -307,7 +307,7 @@ export = class DatabaseHandler {
     /**
      * Get the subscription status of a guild (to check whether it's maintained by PayPal and cancelled)
      */
-    async fetchGuildSubscriptionStatus (guildID: string): Promise<GuildSubscriptionStatus> {
+    async fetchGuildSubscriptionStatus (guildID: Snowflake): Promise<GuildSubscriptionStatus> {
         const guildSubscriptions = await this.fetchGuildSubscriptions(guildID)
         const payments = (await Promise.all(guildSubscriptions.map((sub) => this.fetchSubscriptionPayments(sub.id)))).flat()
         const isPayPal = payments.some((p) => p.type.startsWith("paypal_dash_signup"))
@@ -321,7 +321,7 @@ export = class DatabaseHandler {
     /**
      * Check the premium status for the given guild ids
      */
-    async fetchGuildsPremiumStatuses (guildsID: string[]): Promise<PremiumStatus[]> {
+    async fetchGuildsPremiumStatuses (guildsID: Snowflake[]): Promise<PremiumStatus[]> {
         const guildsSubscriptions = await Promise.all(guildsID.map((g) => this.fetchGuildSubscriptions(g)))
         return guildsSubscriptions.map((subscriptions, index) => ({
             guildID: guildsID[index],
@@ -333,7 +333,7 @@ export = class DatabaseHandler {
     /**
      * Get the guild settings for the given guild id
      */
-    async fetchGuildSettings (guildID: string): Promise<GuildSettings> {
+    async fetchGuildSettings (guildID: Snowflake): Promise<GuildSettings> {
         const redisData = await this.redis.getHashFields(`guild_${guildID}`)
         if (redisData?.guildID) return {
             guildID: redisData.guildID,
@@ -381,7 +381,7 @@ export = class DatabaseHandler {
     /**
      * Update a property of a guild settings
      */
-    async updateGuildSetting (guildID: string, settingName: keyof GuildSettings, newSettingValue: unknown): Promise<void> {
+    async updateGuildSetting (guildID: Snowflake, settingName: keyof GuildSettings, newSettingValue: unknown): Promise<void> {
         if (!["language", "prefix", "cmd_channel", "fake_threshold", "storage_id"].includes(snakeCase(settingName))) throw new Error("unknown_guild_setting")
         const redisUpdatePromise = this.redis.setHash(`guild_${guildID}`, {
             [settingName]: newSettingValue
@@ -397,7 +397,7 @@ export = class DatabaseHandler {
     /**
      * Update a property of a guild alert
      */
-     async updateGuildAlert (guildID: string, alertID: number, settingName: keyof GuildAlert | 'alert_type', newSettingValue: unknown): Promise<void> {
+     async updateGuildAlert (guildID: Snowflake, alertID: number, settingName: keyof GuildAlert | 'alert_type', newSettingValue: unknown): Promise<void> {
         if (!["channel_id", "message", "invite_count", "alert_type"].includes(snakeCase(settingName))) throw new Error("unknown_guild_alert_setting")
         const redisUpdatePromise = this.redis.delete(`guild_alerts_${guildID}`)
         const postgresUpdatePromise = this.postgres.query(`
@@ -412,7 +412,7 @@ export = class DatabaseHandler {
     /**
      * Add a new guild alert
      */
-     async addGuildAlert (guildID: string, inviteCount: number, channelID: string, message: string, type: string): Promise<void> {
+     async addGuildAlert (guildID: Snowflake, inviteCount: number, channelID: string, message: string, type: string): Promise<void> {
         const { rows } = await this.postgres.query(`
             INSERT INTO guild_alerts
             (guild_id, invite_count, channel_id, message, alert_type) VALUES
@@ -441,7 +441,7 @@ export = class DatabaseHandler {
     /**
      * Remove an existing guild alert
      */
-    async removeGuildAlert (guildID: string, alertID: number): Promise<void> {
+    async removeGuildAlert (guildID: Snowflake, alertID: number): Promise<void> {
         const redisUpdatePromise = this.redis.getString(`guild_alerts_${guildID}`, true).then((alerts) => {
             if (!alerts) return
             const newAlerts = (alerts as GuildAlert[]).filter((alert) => alert.id !== alertID)
@@ -458,7 +458,7 @@ export = class DatabaseHandler {
     /**
      * Get the alerts of a guild
      */
-    async fetchGuildAlerts (guildID: string): Promise<GuildAlert[]> {
+    async fetchGuildAlerts (guildID: Snowflake): Promise<GuildAlert[]> {
         const redisData = await this.redis.getString(`guild_alerts_${guildID}`, true)
         if (redisData) return (redisData as Record<string, unknown>[]).map((data) => ({
             id: parseInt(data.id as string),
@@ -489,7 +489,7 @@ export = class DatabaseHandler {
     /**
      * Get the plugins of a guild
      */
-    async fetchGuildPlugins (guildID: string): Promise<GuildPlugin[]> {
+    async fetchGuildPlugins (guildID: Snowflake): Promise<GuildPlugin[]> {
         const redisData = await this.redis.getString(`guild_plugins_${guildID}`, true)
         if (redisData) return redisData as GuildPlugin[]
 
@@ -510,7 +510,7 @@ export = class DatabaseHandler {
     /**
      * Update a guild plugin
      */
-    async updateGuildPlugin (guildID: string, pluginName: string, newPluginData: Record<string, unknown>): Promise<void> {
+    async updateGuildPlugin (guildID: Snowflake, pluginName: PluginName, newPluginData: Record<string, unknown>): Promise<void> {
         const redisUpdatePromise = this.redis.getString(`guild_plugins_${guildID}`, true).then((data) => {
             let newFormattedPlugins = [...(data as GuildPlugin[])]
             newFormattedPlugins = newFormattedPlugins.filter((p) => p.pluginName !== pluginName)
@@ -549,7 +549,7 @@ export = class DatabaseHandler {
     /**
      * Add X invites to a member / the server
      */
-    async addInvites ({ userID, guildID, storageID, number, type }: { userID: string, guildID: string, storageID: string, number: number, type: InviteType}): Promise<void> {
+    async addInvites ({ userID, guildID, storageID, number, type }: { userID: string, guildID: Snowflake, storageID: string, number: number, type: InviteType}): Promise<void> {
         this.redis.delete(`guild_leaderboard_${guildID}_${storageID}`)
         const redisUpdatePromise = this.redis.incrHashBy(`member_${userID}_${guildID}_${storageID}`, type, number)
         const postgresUpdatePromise = this.postgres.query(`
@@ -565,7 +565,7 @@ export = class DatabaseHandler {
     /**
      * Add invites to a server
      */
-    async addGuildInvites ({ usersID, guildID, storageID, number, type }: { usersID: string[], guildID: string, storageID: string, number: number, type: InviteType }): Promise<void> {
+    async addGuildInvites ({ usersID, guildID, storageID, number, type }: { usersID: string[], guildID: Snowflake, storageID: string, number: number, type: InviteType }): Promise<void> {
         this.redis.delete(`guild_leaderboard_${guildID}_${storageID}`)
         const redisUpdates = usersID.map((userID) => this.redis.incrHashBy(`member_${userID}_${guildID}_${storageID}`, type, number))
         const postgresUpdate = this.postgres.query(`
@@ -580,7 +580,7 @@ export = class DatabaseHandler {
     /**
      * Get the guild blacklisted users
      */
-    async fetchGuildBlacklistedUsers (guildID: string): Promise<string[]> {
+    async fetchGuildBlacklistedUsers (guildID: Snowflake): Promise<string[]> {
         const redisData = await this.redis.getString(`guild_blacklisted_${guildID}`, true)
         if (redisData) return redisData as string[]
 
@@ -599,7 +599,7 @@ export = class DatabaseHandler {
     /**
      * Add a user to the guild blacklist
      */
-    async addGuildBlacklistedUser ({ guildID, userID }: { guildID: string, userID: string }): Promise<void> {
+    async addGuildBlacklistedUser ({ guildID, userID }: { guildID: Snowflake, userID: string }): Promise<void> {
         const redisUpdatePromise = this.redis.getString(`guild_blacklisted_${guildID}`, true).then((blacklisted) => {
             if (!blacklisted) return
             const newBlacklisted = [ ...(blacklisted as string[]), userID ]
@@ -616,7 +616,7 @@ export = class DatabaseHandler {
     /**
      * Remove a user from the guild blacklist
      */
-    async removeGuildBlacklistedUser ({ guildID, userID }: { guildID: string, userID: string }): Promise<void> {
+    async removeGuildBlacklistedUser ({ guildID, userID }: { guildID: Snowflake, userID: string }): Promise<void> {
         const redisUpdatePromise = this.redis.getString(`guild_blacklisted_${guildID}`, true).then((blacklisted) => {
             if (!blacklisted) return
             let newBlacklisted = [ ...(blacklisted as string[]) ]
@@ -634,7 +634,7 @@ export = class DatabaseHandler {
     /**
      * Get the guild leaderboard
      */
-    async fetchGuildLeaderboard (guildID: string, storageID: string, limit?: number): Promise<UserLeaderboardEntry[]> {
+    async fetchGuildLeaderboard (guildID: Snowflake, storageID: string, limit?: number): Promise<UserLeaderboardEntry[]> {
         const redisData = await this.redis.getString(`guild_leaderboard_${guildID}_${storageID}`, true)
         if (redisData) return redisData as UserLeaderboardEntry[]
 
@@ -667,7 +667,7 @@ export = class DatabaseHandler {
     /**
      * Create a guild member (before updating it)
      */
-    async createGuildMember ({ userID, guildID, storageID }: { userID: string, guildID: string, storageID: string }): Promise<void> {
+    async createGuildMember ({ userID, guildID, storageID }: { userID: string, guildID: Snowflake, storageID: string }): Promise<void> {
         const redisUpdatePromise = this.redis.setHash(`member_${userID}_${guildID}_${storageID}`, {
             notCreated: false
         })
@@ -689,11 +689,11 @@ export = class DatabaseHandler {
     /**
      * Get a guild member
      */
-    async fetchGuildMember ({ userID, guildID, storageID }: { userID: string, guildID: string, storageID: string }): Promise<GuildMember> {
+    async fetchGuildMember ({ userID, guildID, storageID }: { userID: string, guildID: Snowflake, storageID: string }): Promise<GuildMember> {
         const redisData = await this.redis.getHashFields(`member_${userID}_${guildID}_${storageID}`)
         if (redisData?.userID) return {
             userID: redisData.userID,
-            guildID: redisData.guildID,
+            guildID: redisData.guildID as Snowflake,
             storageID: redisData.storageID,
             fake: parseInt(redisData.fake),
             leaves: parseInt(redisData.leaves),
@@ -733,7 +733,7 @@ export = class DatabaseHandler {
     /**
      * Get the member events (the events where they were invited and the events where they invited someone else)
      */
-    async fetchGuildMemberEvents ({ userID, guildID }: { userID: string, guildID: string }): Promise<GuildMemberEvent[]> {
+    async fetchGuildMemberEvents ({ userID, guildID }: { userID: string, guildID: Snowflake }): Promise<GuildMemberEvent[]> {
         const redisData = await this.redis.getString(`member_${userID}_${guildID}_events`, true)
         if (redisData) return redisData as GuildMemberEvent[]
 
